@@ -12,6 +12,11 @@ from poc import Symbol
 import re
 
 def test_create_symbol():
+    """
+    old test:
+        - manual symbol creation
+        - manual parsing
+    """
     st = "first second third fourth fifth"
 
     sw = Symbol('\w+')
@@ -22,68 +27,17 @@ def test_create_symbol():
         print("parsed: {}".format(curr))
         st, space = ss.parse(st)
 
-#test_create_symbol()
-
 def test_cfg_manual():
+    """
+    test:
+        - create mapping from cfg expr
+        - create aggregate Symbol with arithmetic and parse
+    """
 
     in_cfg = (
         "\G :\WORD \SPACE \G | \\0\n"
         "\WORD :\w+\n"
         "\SPACE : "
-    )
-
-    lines = [line for line in in_cfg.split('\n') if line.strip()]
-    mappings = {Symbol._sym(line):Symbol._expr(line) for line in lines}
-
-    # just going for hardcoded right now to sketch out how function application would look
-
-    # this is kind of how it would work?
-    #_g = Symbol(r'\w+') + Symbol(' ')
-    #g = Symbol(r'\w+') + Symbol(' ') + _g
-
-    sw = Symbol(mappings['WORD'])
-    ss = Symbol(mappings['SPACE'])
-    # so this "function" represents G
-    # maybe this is how symbols should work in aggregate (lines?)
-    def f(inp):
-        inp, curr = sw.parse(inp)
-        # check here if inp is unchanged? (for or clause?)
-
-        print("parsed: {}".format(curr))
-        inp, curr = ss.parse(inp)
-        # check here if inp is unchanged? (for or clause?)
-
-        if inp:
-            f(inp)
-            # check str?
-
-    # overloading + operator means dealing with two things at a time?
-    # self.aggregate
-    def aggregate(inp):
-        inp, ret = sw.parse(inp)
-        print("parsed: {}".format(ret))
-        inp, ret = ss.parse(inp)
-        return inp, ret # keep consistent returns
-
-    # then 'G':
-    def _f(inp):
-        if not inp:
-            return inp, ""
-        inp, ret = aggregate(inp)
-        inp, ret = _f(inp)
-        return inp, ret
-
-    st = "first second third fourth fifth"
-    #f(st)
-    _f(st)
-
-#test_cfg_manual()
-
-def test_cfg_manual2():
-    in_cfg = (
-    "\G :\WORD \SPACE \G | \\0\n"
-    "\WORD :\w+\n"
-    "\SPACE : "
     )
 
     lines = [line for line in in_cfg.split('\n') if line.strip()]
@@ -93,16 +47,13 @@ def test_cfg_manual2():
     ss = Symbol(mappings['SPACE'])
 
     g = sw + ss
-    g.lrec()
+    g.rrec()
     #g = g | Symbol('')
 
     st = "first second third fourth fifth"
     g.parse(st)
 
-try:
-    test_cfg_manual2()
-except RecursionError:
-    pass
+test_cfg_manual()
 
 def test_inp_cfg():
     """
