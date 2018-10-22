@@ -50,7 +50,7 @@ class Symbol():
         """
 
         if not isinstance(other, Symbol):
-            raise TypeError
+            raise TypeError("cannot add with type: {}".format(type(other)))
 
         def _f(inp_str):
             inp, ret = self.parse(inp_str)
@@ -96,7 +96,7 @@ class Symbol():
         def _f(inp_str):
             if not inp_str:
                 return inp_str, ""
-            inp, ret = self.parse(inp_str)
+            inp, ret = _f(inp_str)
             inp, ret = _parse_func(inp)
             return inp, ret
 
@@ -108,12 +108,11 @@ class Symbol():
             if not inp_str:
                 return inp_str, ""
             inp, ret = _parse_func(inp_str)
-            inp, ret = self.parse(inp)
+            inp, ret = _f(inp)
             return inp, ret
 
         self.parse_func = _f
 
-    # this should maybe in a later Line class
     @staticmethod
     def _sym(inp):
         """
