@@ -77,7 +77,32 @@ def test_cfg_manual():
     #f(st)
     _f(st)
 
-test_cfg_manual()
+#test_cfg_manual()
+
+def test_cfg_manual2():
+    in_cfg = (
+    "\G :\WORD \SPACE \G | \\0\n"
+    "\WORD :\w+\n"
+    "\SPACE : "
+    )
+
+    lines = [line for line in in_cfg.split('\n') if line.strip()]
+    mappings = Symbol.create_mappings(lines)
+
+    sw = Symbol(mappings['WORD'])
+    ss = Symbol(mappings['SPACE'])
+
+    g = sw + ss
+    g.lrec()
+    #g = g | Symbol('')
+
+    st = "first second third fourth fifth"
+    g.parse(st)
+
+try:
+    test_cfg_manual2()
+except RecursionError:
+    pass
 
 def test_inp_cfg():
     """

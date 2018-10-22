@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import copy
 import re
 
 # note - what should an error look like?
@@ -42,6 +43,75 @@ class Symbol():
 
     def parse(self, inp_str):
         return self.parse_func(inp_str)
+
+    def __add__(self, other):
+        """
+        Change the parse function when symbols are added together
+        """
+
+        if not isinstance(other, Symbol):
+            raise TypeError
+
+        def _f(inp_str):
+            inp, ret = self.parse(inp_str)
+            print("parsed: {}".format(ret))
+            inp, ret = other.parse(inp)
+            return inp, ret
+
+        s = Symbol(None)
+        s.parse_func = _f
+        return s
+
+    def __or__(self, other):
+
+        if not isinstance(other, Symbol):
+            raise TypeError("cannot or with type: {}".format(type(other)))
+
+        def _f(inp_str):
+            if not inp_str:
+                return inp_str, ""
+            _inp_original = copy.copy(inp_str)
+            inp, ret = self.parse(inp_str)
+            if _inp_original == inp:
+                print("parsed (or): {}".format(ret))
+                inp, ret = other.parse(inp_str)
+            else:
+                print("parsed (first): {}".format(ret))
+
+            return inp, ret
+
+        s = Symbol(None)
+        s.parse_func = _f
+        return s
+
+    def __ror__(self, other):
+        return self.__or__(other)
+
+    # "hardcoded" recursion
+    # NOTE - right now, ALL RECURSIVE SYMBOLS have an implicit empty string???
+
+    def lrec(self):
+        # lrec doesnt work yet? rrec does
+        _parse_func = self.parse_func
+        def _f(inp_str):
+            if not inp_str:
+                return inp_str, ""
+            inp, ret = self.parse(inp_str)
+            inp, ret = _parse_func(inp)
+            return inp, ret
+
+        self.parse_func = _f
+
+    def rrec(self):
+        _parse_func = self.parse_func
+        def _f(inp_str):
+            if not inp_str:
+                return inp_str, ""
+            inp, ret = _parse_func(inp_str)
+            inp, ret = self.parse(inp)
+            return inp, ret
+
+        self.parse_func = _f
 
     # this should maybe in a later Line class
     @staticmethod
