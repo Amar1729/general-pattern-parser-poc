@@ -20,6 +20,13 @@ class Symbol():
     # which will be manually created later
     def __init__(self, regex, **kwargs):
         if regex:
+            # TODO - possibly treat 'regex' differently if prefixed with r or not?
+            # -> so we can form literals easily?
+            self.str = "r'{}'".format(regex)
+        else:
+            self.str = "\\0"
+
+        if regex:
             self.regex = re.compile(regex)
             self.parse_func = Symbol._create_parse_func(self.regex)
         elif regex == '': # empty regex -> null terminate
@@ -44,6 +51,12 @@ class Symbol():
     def parse(self, inp_str):
         return self.parse_func(inp_str)
 
+    def __repr__(self):
+        return self.str
+
+    def __str__(self):
+        return self.str
+
     def __add__(self, other):
         """
         Change the parse function when symbols are added together
@@ -59,6 +72,7 @@ class Symbol():
             return inp, ret
 
         s = Symbol(None)
+        s.str = "{} + {}".format(self.str, other.str)
         s.parse_func = _f
         return s
 
@@ -81,6 +95,8 @@ class Symbol():
             return inp, ret
 
         s = Symbol(None)
+        # TODO - add a check on self.regex here to decide whether to incl ()
+        s.str = "({}) | ({})".format(self.str, other.str)
         s.parse_func = _f
         return s
 
@@ -100,6 +116,7 @@ class Symbol():
             inp, ret = _parse_func(inp)
             return inp, ret
 
+        self.str = "* ({})".format(self.str)
         self.parse_func = _f
 
     def rrec(self):
@@ -111,6 +128,7 @@ class Symbol():
             inp, ret = _f(inp)
             return inp, ret
 
+        self.str = "({}) *".format(self.str)
         self.parse_func = _f
 
     @staticmethod
