@@ -30,7 +30,13 @@ class Symbol():
             self.regex = re.compile(regex)
             self.parse_func = Symbol._create_parse_func(self.regex)
         elif regex == '': # empty regex -> null terminate
-            self.parse_func = lambda inp: (inp, "")
+            self.parse_func = lambda inp: (inp, True)
+
+        # introduce a Symbol type, to help decide how to combine two symbols
+        if kwargs.get('type_'):
+            self.type_ = kwargs.get('type_')
+        else:
+            self.type_ = 'agg'
 
         # enabled for output?
         #self.enabled = True
@@ -74,6 +80,8 @@ class Symbol():
         s = Symbol(None)
         s.str = "{} + {}".format(self.str, other.str)
         s.parse_func = _f
+        if self.type_ == 'lit' and other.type_ == 'lit':
+            s.type_ = 'lit'
         return s
 
     def __or__(self, other):
@@ -98,6 +106,8 @@ class Symbol():
         # TODO - add a check on self.regex here to decide whether to incl ()
         s.str = "({}) | ({})".format(self.str, other.str)
         s.parse_func = _f
+        if self.type_ == 'lit' and other.type_ == 'lit':
+            s.type_ = 'lit'
         return s
 
     def __ror__(self, other):
@@ -118,6 +128,7 @@ class Symbol():
 
         self.str = "* ({})".format(self.str)
         self.parse_func = _f
+        self.type_ = None
 
     def rrec(self):
         _parse_func = self.parse_func
@@ -130,6 +141,7 @@ class Symbol():
 
         self.str = "({}) *".format(self.str)
         self.parse_func = _f
+        self.type_ = None
 
     @staticmethod
     def _sym(inp):
