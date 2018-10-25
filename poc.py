@@ -161,3 +161,175 @@ class Symbol():
     @staticmethod
     def create_mappings(lines):
         return {Symbol._sym(line):Symbol._expr(line) for line in lines}
+
+
+class CFG():
+    """
+    Collection of symbols to parse out as a group
+    """
+
+    # notes on class vars:
+    # self.mappings:
+    # { symbol_name : raw_symbol_line }
+    #
+    # self.symbols:
+    # { symbol_name : Symbol() } # condensed symbol. should be able to immediately parse()
+
+    def __init__(self, _cfg):
+        # note : include newline chars if they're the only thing in the string?
+        lines = _cfg.split('\n')
+
+        # by default, the first symbol will be the start point
+        self.root = lines[0][:lines[0].index(':')].strip().lstrip('\\')
+
+        self.__create_mappings(lines)
+        self.__create_cfg()
+
+    def __create_mappings(self, lines):
+        """
+        extract symbol names and expressions into a dictionary
+        """
+        def _sym(inp):
+            return inp[:inp.index(':')].strip().lstrip('\\')
+
+        def _expr(inp):
+            return re.sub(r'.*?:', '', inp, 1)
+
+        self.mappings = {_sym(line):_expr(line) for line in lines}
+
+    def __create_cfg(self):
+        """
+        From mappings, create the collection of Symbols that form this CFG
+        """
+
+        # idea:
+        # convert each line to a list of symbols to be combined in one loop
+        #   (so that every symbol resolves to something)
+        # then loop through again to perform Symbol arithmetic
+        self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
+        #self.symbols = {k:symbols[k].condense() for k in symbols}
+
+    @staticmethod
+    def __split(line):
+        """
+        Custom split to preserve multiple (2) consecutive spaces
+        May be important for regexes including a literal space
+        """
+
+        i = 0
+        _str = ''
+
+        while i < len(line):
+            _str += line[i]
+            i += 1
+
+            # return last word in string, or split on spaces
+            if i >= len(line) or line[i] == ' ':
+
+                # if there are two consecutive spaces, add a space to the current and next item
+                try:
+                    if line[n+1] == ' ':
+                        _str += ' '
+                except IndexError:
+                    pass
+                yield _str
+                i += 1
+                _str = ''
+
+    def __is_symbol(self, _str):
+        return True if _str.strip().lstrip('\\') in self.mappings else False
+
+    def __expand_symbol(self, line):
+        """
+        Convert a line with Symbol names to a Symbol
+        """
+
+        # TODO - maybe put ParseError handling/raising here, for more modular code?
+        return self.__condense(CFG.__line_to_postfix(line))
+
+    @staticmethod
+    def __line_to_postfix(line):
+        """
+        Convert the symbol line to postfix for easier parsing
+        """
+
+        stack = []
+        output = []
+
+        for token in CFG.__split(line):
+            if token.strip() in '+|':
+                while stack:
+                    if stack[-1] in '(':
+                        break
+                    else:
+                        output.append(stack.pop())
+                stack.append(token.strip())
+            elif token.strip() == '(':
+                stack.append(token.strip())
+            elif token.strip() == ')':
+                if '(' not in stack:
+                    raise ParseError("Unmatched ')'")
+
+                while stack:
+                    op = stack.pop()
+                    if op == '(':
+                        break
+                    output.append(op)
+            else:
+                # literal, regex, or symbol name
+                # note that consecutive regexes/literals added together need to be handled properly
+                # also note that greedy stuff might fuck up add/or
+                output.append(token)
+
+        if '(' in stack:
+            raise ParseError("Unmatched '('")
+
+        while stack:
+            output.append(stack.pop())
+
+        return output
+
+    def __condense(self, tokens):
+        """
+        Condense the postfix list of tokens into a single Symbol
+        """
+
+        stack = []
+        #for token in tokens[::-1]:
+        for token in tokens:
+            if token == '+':
+                try:
+                    op_r = stack.pop()
+                    op_l = stack.pop()
+                except IndexError:
+                    raise ParseError("Incorrect expression (too many operators)")
+                res = op_l + op_r
+                stack.append(res)
+            elif token == '|':
+                try:
+                    op_r = stack.pop()
+                    op_l = stack.pop()
+                except IndexError:
+                    raise ParseError("Incorrect expression (too many operators)")
+                res = op_l | op_r
+                stack.append(res)
+            else:
+                # token is a str literal, regex, or SYMBOL_NAME
+                sym_name = token.strip().lstrip('\\')
+                if sym_name in self.mappings:
+                    # TODO - this line right here needs some work
+                    # how to properly do symbol expansion and formation?
+                    # needs to rely on .parse_func being set() later on (i think?)
+                    stack.append(self.mappings[sym_name]) # note that this is NOT a literal symbol
+                else:
+                    # literal Symbols can be easily recombined later
+                    stack.append(Symbol(token, type_='lit'))
+
+        if len(stack) > 1:
+            # TODO - better error here, this is too obscure
+            raise ParseError("Too many operands")
+
+        return stack.pop()
+
+    def parse(self, inp_str):
+        return self.symbols[self.root].parse(inp_str)
