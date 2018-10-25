@@ -53,8 +53,9 @@ class Symbol():
             if result:
                 result = result.group()
                 rem_len = len(result)
-                return (inp_str[rem_len:], result)
-            return (inp_str, "")
+                # if this is the empty-string parser, it should still return True
+                return (inp_str[rem_len:], result if result else True)
+            return (inp_str, False)
         return func
 
     def parse(self, inp_str):
