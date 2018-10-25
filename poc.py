@@ -8,6 +8,9 @@ import re
 
 # note - how will recursive symbols work? if i do symbol replacement
 
+class ParseError(Exception):
+    pass
+
 class Symbol():
     """
     Create a symbol from a regex.
