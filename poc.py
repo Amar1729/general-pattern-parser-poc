@@ -30,9 +30,11 @@ class Symbol():
             self.str = "\\0"
 
         if regex:
+            self.raw = regex
             self.regex = re.compile(regex)
             self.parse_func = Symbol._create_parse_func(self.regex)
         elif regex == '': # empty regex -> null terminate
+            self.raw = ''
             self.parse_func = lambda inp: (inp, True)
 
         # introduce a Symbol type, to help decide how to combine two symbols
@@ -81,11 +83,12 @@ class Symbol():
             inp, ret = other.parse(inp)
             return inp, ret
 
+        if self.type_ == 'lit' and other.type_ == 'lit':
+            return Symbol(self.raw+other.raw, type_='lit')
+
         s = Symbol(None)
         s.str = "{} + {}".format(self.str, other.str)
         s.parse_func = _f
-        if self.type_ == 'lit' and other.type_ == 'lit':
-            s.type_ = 'lit'
         return s
 
     def __or__(self, other):
@@ -106,46 +109,18 @@ class Symbol():
 
             return inp, ret
 
+        if self.type_ == 'lit' and other.type_ == 'lit':
+            # not totally comfortable about this
+            return Symbol(self.raw+'|'+other.raw, type_='lit')
+
         s = Symbol(None)
         # TODO - add a check on self.regex here to decide whether to incl ()
         s.str = "({}) | ({})".format(self.str, other.str)
         s.parse_func = _f
-        if self.type_ == 'lit' and other.type_ == 'lit':
-            s.type_ = 'lit'
         return s
 
     def __ror__(self, other):
         return self.__or__(other)
-
-    # "hardcoded" recursion
-    # NOTE - right now, ALL RECURSIVE SYMBOLS have an implicit empty string???
-
-    def lrec(self):
-        # lrec doesnt work yet? rrec does
-        _parse_func = self.parse_func
-        def _f(inp_str):
-            if not inp_str:
-                return inp_str, ""
-            inp, ret = _f(inp_str)
-            inp, ret = _parse_func(inp)
-            return inp, ret
-
-        self.str = "* ({})".format(self.str)
-        self.parse_func = _f
-        self.type_ = None
-
-    def rrec(self):
-        _parse_func = self.parse_func
-        def _f(inp_str):
-            if not inp_str:
-                return inp_str, ""
-            inp, ret = _parse_func(inp_str)
-            inp, ret = _f(inp)
-            return inp, ret
-
-        self.str = "({}) *".format(self.str)
-        self.parse_func = _f
-        self.type_ = None
 
     @staticmethod
     def _sym(inp):
