@@ -206,7 +206,13 @@ class CFG():
         # convert each line to a list of symbols to be combined in one loop
         #   (so that every symbol resolves to something)
         # then loop through again to perform Symbol arithmetic
-        self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
+        #self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
+        self.symbols = {}
+        for k, v in self.mappings.items():
+            # is this loop necc?
+            self.symbols[k] = Symbol(None)
+            _k = self.__expand_symbol(v)
+            self.symbols[k].set_parse_func(_k.parse_func)
         #self.symbols = {k:symbols[k].condense() for k in symbols}
 
     @staticmethod
@@ -256,16 +262,23 @@ class CFG():
         stack = []
         output = []
 
+        last_token_sym = False
+
+        def handle_op(op):
+            while stack:
+                if stack[-1].strip() in '(':
+                    break
+                else:
+                    output.append(stack.pop())
+            stack.append(op)
+
         for token in CFG.__split(line):
             if token.strip() in '+|':
-                while stack:
-                    if stack[-1] in '(':
-                        break
-                    else:
-                        output.append(stack.pop())
-                stack.append(token.strip())
+                handle_op(token.strip())
+                last_token_sym = False
             elif token.strip() == '(':
                 stack.append(token.strip())
+                last_token_sym = False
             elif token.strip() == ')':
                 if '(' not in stack:
                     raise ParseError("Unmatched ')'")
@@ -275,11 +288,16 @@ class CFG():
                     if op == '(':
                         break
                     output.append(op)
+                last_token_sym = False
             else:
                 # literal, regex, or symbol name
                 # note that consecutive regexes/literals added together need to be handled properly
                 # also note that greedy stuff might fuck up add/or
+
+                if last_token_sym:
+                    handle_op('+')
                 output.append(token)
+                last_token_sym = True
 
         if '(' in stack:
             raise ParseError("Unmatched '('")
