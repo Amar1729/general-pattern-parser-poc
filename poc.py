@@ -14,7 +14,7 @@ class ParseError(Exception):
 class Symbol():
     """
     Create a symbol from a regex.
-    A 'symbol' is a function that will parse input text according to reg.
+    A 'symbol' is a function that will parse input text according to regex.
     """
 
     # note -
@@ -30,8 +30,9 @@ class Symbol():
             self.str = "\\0"
 
         if regex:
+            self.raw = regex
             self.regex = re.compile(regex)
-            self.parse_func = Symbol._create_parse_func(self.regex)
+            self.parse_func = Symbol.create_parse_func(self.regex)
         elif regex == '': # empty regex -> null terminate
             self.parse_func = lambda inp: (inp, True)
 
@@ -47,7 +48,7 @@ class Symbol():
         # note - how to handle multiline regex?
 
     @staticmethod
-    def _create_parse_func(reg):
+    def create_parse_func(reg=None, function=None):
         def func(inp_str):
             result = re.match(reg, inp_str)
             if result:
@@ -57,6 +58,12 @@ class Symbol():
                 return (inp_str[rem_len:], result if result else True)
             return (inp_str, False)
         return func
+
+    # i think for testing purposes I'll have to define a few more functions
+    # such as a set_line() ? maybe ?
+    # how else do i manually create a CFG (remember, for testing?)
+    def set_parse_func(self, f):
+        self.parse_func = f
 
     def parse(self, inp_str):
         return self.parse_func(inp_str)
@@ -77,15 +84,22 @@ class Symbol():
 
         def _f(inp_str):
             inp, ret = self.parse(inp_str)
-            print("parsed: {}".format(ret))
+            if not ret:
+                return inp, ret
             inp, ret = other.parse(inp)
             return inp, ret
 
         s = Symbol(None)
         s.str = "{} + {}".format(self.str, other.str)
-        s.parse_func = _f
         if self.type_ == 'lit' and other.type_ == 'lit':
+            # NOTE - this should also include a better joining of the regex!
+            s.raw = "{}{}".format(self.raw, other.raw)
+            s.regex = re.compile(s.raw)
+            s.parse_func = Symbol.create_parse_func(s.regex)
             s.type_ = 'lit'
+        else:
+            s.parse_func = _f
+            s.type_ = 'agg'
         return s
 
     def __or__(self, other):
@@ -94,24 +108,30 @@ class Symbol():
             raise TypeError("cannot or with type: {}".format(type(other)))
 
         def _f(inp_str):
-            if not inp_str:
-                return inp_str, ""
-            _inp_original = copy.copy(inp_str)
+            #if not inp_str:
+            #    return inp_str, ""
             inp, ret = self.parse(inp_str)
-            if _inp_original == inp:
-                print("parsed (or): {}".format(ret))
+            if not ret:
                 inp, ret = other.parse(inp_str)
-            else:
-                print("parsed (first): {}".format(ret))
-
             return inp, ret
 
         s = Symbol(None)
-        # TODO - add a check on self.regex here to decide whether to incl ()
-        s.str = "({}) | ({})".format(self.str, other.str)
-        s.parse_func = _f
+        _self_str = "{}".format(self.str)
+        if self.type_ != 'lit':
+            _self_str = "(" + _self_str + ")"
+        _other_str = "{}".format(other.str)
+        if other.type_ != 'lit':
+            _other_str = "(" + _other_str + ")"
+        s.str = "{} | {}".format(_self_str, _other_str)
         if self.type_ == 'lit' and other.type_ == 'lit':
+            # NOTE - this should also include a better joining of the regex!
+            s.raw = "{}|{}".format(self.raw, other.raw)
+            s.regex = re.compile(s.raw)
+            s.parse_func = Symbol.create_parse_func(s.regex)
             s.type_ = 'lit'
+        else:
+            s.parse_func = _f
+            s.type_ = 'agg'
         return s
 
     def __ror__(self, other):
@@ -132,7 +152,7 @@ class Symbol():
 
         self.str = "* ({})".format(self.str)
         self.parse_func = _f
-        self.type_ = None
+        self.type_ = 'agg'
 
     def rrec(self):
         _parse_func = self.parse_func
@@ -145,7 +165,7 @@ class Symbol():
 
         self.str = "({}) *".format(self.str)
         self.parse_func = _f
-        self.type_ = None
+        self.type_ = 'agg'
 
     @staticmethod
     def _sym(inp):
@@ -162,6 +182,25 @@ class Symbol():
     def create_mappings(lines):
         return {Symbol._sym(line):Symbol._expr(line) for line in lines}
 
+"""
+Possibly: create a symbol parse tree - symbols are pushed on at line parse,
+then the whole tree is evaluated as a symbol expression.
+Returns? one aggregate symbol
+
+- note : how to do dependency tracking?
+- leaves could have an attribute indicating whether it's dependent?
+
+- notes:
+# look for symbol names (\\SYMBOL) inside the line string
+r = re.compile(r'\\\w+?\b')
+# create a literal symbol out of the remaining text
+
+# split line by spaces, preserving multiple consecutive (up to 2?)
+# check if _str is a symbol or not:
+#   if it is, push it to Tree as a symbol
+#   else, push it to Tree as a regex
+#       -> a regex node may be easily combined with another
+"""
 
 class CFG():
     """
@@ -228,7 +267,7 @@ class CFG():
 
                 # if there are two consecutive spaces, add a space to the current and next item
                 try:
-                    if line[n+1] == ' ':
+                    if line[i+1] == ' ':
                         _str += ' '
                 except IndexError:
                     pass
@@ -287,6 +326,9 @@ class CFG():
         while stack:
             output.append(stack.pop())
 
+        print("postfix:")
+        print(output)
+        print('')
         return output
 
     def __condense(self, tokens):
@@ -327,9 +369,12 @@ class CFG():
 
         if len(stack) > 1:
             # TODO - better error here, this is too obscure
+            print(stack)
             raise ParseError("Too many operands")
 
         return stack.pop()
 
     def parse(self, inp_str):
+        # note - this may be wrapped in an exception to check whether all the .parse() functions exist
+        # alternatively, define a small test() that checks .parse() on all symbols
         return self.symbols[self.root].parse(inp_str)
