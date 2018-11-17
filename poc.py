@@ -34,6 +34,7 @@ class Symbol():
             self.regex = re.compile(regex)
             self.parse_func = Symbol.create_parse_func(self.regex)
         elif regex == '': # empty regex -> null terminate
+            self.raw = ''
             self.parse_func = lambda inp: (inp, True)
 
         # introduce a Symbol type, to help decide how to combine two symbols
@@ -89,6 +90,9 @@ class Symbol():
             inp, ret = other.parse(inp)
             return inp, ret
 
+        if self.type_ == 'lit' and other.type_ == 'lit':
+            return Symbol(self.raw+other.raw, type_='lit')
+
         s = Symbol(None)
         s.str = "{} + {}".format(self.str, other.str)
         if self.type_ == 'lit' and other.type_ == 'lit':
@@ -115,6 +119,10 @@ class Symbol():
                 inp, ret = other.parse(inp_str)
             return inp, ret
 
+        if self.type_ == 'lit' and other.type_ == 'lit':
+            # not totally comfortable about this
+            return Symbol(self.raw+'|'+other.raw, type_='lit')
+
         s = Symbol(None)
         _self_str = "{}".format(self.str)
         if self.type_ != 'lit':
@@ -136,36 +144,6 @@ class Symbol():
 
     def __ror__(self, other):
         return self.__or__(other)
-
-    # "hardcoded" recursion
-    # NOTE - right now, ALL RECURSIVE SYMBOLS have an implicit empty string???
-
-    def lrec(self):
-        # lrec doesnt work yet? rrec does
-        _parse_func = self.parse_func
-        def _f(inp_str):
-            if not inp_str:
-                return inp_str, ""
-            inp, ret = _f(inp_str)
-            inp, ret = _parse_func(inp)
-            return inp, ret
-
-        self.str = "* ({})".format(self.str)
-        self.parse_func = _f
-        self.type_ = 'agg'
-
-    def rrec(self):
-        _parse_func = self.parse_func
-        def _f(inp_str):
-            if not inp_str:
-                return inp_str, ""
-            inp, ret = _parse_func(inp_str)
-            inp, ret = _f(inp)
-            return inp, ret
-
-        self.str = "({}) *".format(self.str)
-        self.parse_func = _f
-        self.type_ = 'agg'
 
     @staticmethod
     def _sym(inp):
@@ -245,7 +223,13 @@ class CFG():
         # convert each line to a list of symbols to be combined in one loop
         #   (so that every symbol resolves to something)
         # then loop through again to perform Symbol arithmetic
-        self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
+        #self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
+        self.symbols = {}
+        for k, v in self.mappings.items():
+            # is this loop necc?
+            self.symbols[k] = Symbol(None)
+            _k = self.__expand_symbol(v)
+            self.symbols[k].set_parse_func(_k.parse_func)
         #self.symbols = {k:symbols[k].condense() for k in symbols}
 
     @staticmethod
@@ -295,16 +279,23 @@ class CFG():
         stack = []
         output = []
 
+        last_token_sym = False
+
+        def handle_op(op):
+            while stack:
+                if stack[-1].strip() in '(':
+                    break
+                else:
+                    output.append(stack.pop())
+            stack.append(op)
+
         for token in CFG.__split(line):
             if token.strip() in '+|':
-                while stack:
-                    if stack[-1] in '(':
-                        break
-                    else:
-                        output.append(stack.pop())
-                stack.append(token.strip())
+                handle_op(token.strip())
+                last_token_sym = False
             elif token.strip() == '(':
                 stack.append(token.strip())
+                last_token_sym = False
             elif token.strip() == ')':
                 if '(' not in stack:
                     raise ParseError("Unmatched ')'")
@@ -314,11 +305,16 @@ class CFG():
                     if op == '(':
                         break
                     output.append(op)
+                last_token_sym = False
             else:
                 # literal, regex, or symbol name
                 # note that consecutive regexes/literals added together need to be handled properly
                 # also note that greedy stuff might fuck up add/or
+
+                if last_token_sym:
+                    handle_op('+')
                 output.append(token)
+                last_token_sym = True
 
         if '(' in stack:
             raise ParseError("Unmatched '('")
