@@ -7,7 +7,7 @@
 # second thought - measure length and compare (if we want to do this)
 # of course, the second item in the tuple is empty if this is the case
 
-from poc import Symbol
+from poc import Symbol, CFG
 
 import re
 
@@ -100,11 +100,32 @@ def test_rec():
     assert d['g'].parse('aaabb') == ('', False)
     assert d['g'].parse('aabbb') == ('b', 'b')
 
+def test_read_expr():
+    expr = "\\A:a"
+    cfg = CFG(expr)
+
+    assert cfg.root == 'A'
+    assert cfg.parse('')[1] == False
+    assert cfg.parse('a')[0] == ''
+    assert cfg.parse('aa') == ('a', 'a')
+
+    expr = "\\A:a + \\B\n\\B:b*"
+    cfg = CFG(expr)
+
+    assert cfg.root == 'A'
+    assert cfg.parse('')[1] == False
+    assert cfg.parse('a')[0] == ''
+    assert cfg.parse('ab')[0] == ''
+    assert cfg.parse('abb')[0] == ''
+    assert cfg.parse('abba') == ('a', 'bb')
+
 test_star()
 test_add()
 test_or()
 test_add_or()
 test_rec()
+
+test_read_expr()
 
 def test_create_symbol():
     """
