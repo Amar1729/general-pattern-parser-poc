@@ -48,6 +48,28 @@ class Symbol():
 
         # note - how to handle multiline regex?
 
+    def update(self, other):
+
+        if not isinstance(other, Symbol):
+            raise TypeError("Cannot update with type {}".format(type(other)))
+
+        self.str = other.str
+        try:
+            if not other.regex:
+                self.regex = other.regex
+        except AttributeError:
+            pass
+        try:
+            self.raw = other.raw
+        except AttributeError:
+            pass
+        try:
+            self.parse_func = other.parse_func
+        except AttributeError:
+            # TODO - slightly obtuse error msg
+            raise TypeError("Original symbol requires a parse function")
+        self.type_ = other.type_
+
     @staticmethod
     def _create_parse_func(reg):
         def func(inp_str):
