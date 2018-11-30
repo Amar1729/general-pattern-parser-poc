@@ -147,21 +147,6 @@ class Symbol():
     def __ror__(self, other):
         return self.__or__(other)
 
-    @staticmethod
-    def _sym(inp):
-        """
-        separate symbol names and expressions
-        """
-        return inp[:inp.index(':')].strip()[1:]
-
-    @staticmethod
-    def _expr(inp):
-        return re.sub(r'.*?:', '', inp, 1)
-
-    @staticmethod
-    def create_mappings(lines):
-        return {Symbol._sym(line):Symbol._expr(line) for line in lines}
-
 
 class CFG():
     """
