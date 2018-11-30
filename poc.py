@@ -79,6 +79,8 @@ class Symbol():
 
         def _f(inp_str):
             inp, ret = self.parse(inp_str)
+            if not ret:
+                return inp, ret
             print("parsed: {}".format(ret))
             inp, ret = other.parse(inp)
             return inp, ret
