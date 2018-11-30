@@ -170,6 +170,9 @@ class CFG():
         self.__create_mappings(lines)
         self.__create_cfg()
 
+    def __str__(self):
+        return '\n'.join(["{}: {}".format(s, e) for s, e in self.symbols.items()])
+
     def __create_mappings(self, lines):
         """
         extract symbol names and expressions into a dictionary
@@ -197,8 +200,7 @@ class CFG():
             # is this loop necc?
             self.symbols[k] = Symbol(None)
             _k = self.__expand_symbol(v)
-            self.symbols[k].set_parse_func(_k.parse_func)
-        #self.symbols = {k:symbols[k].condense() for k in symbols}
+            self.symbols[k].update(_k)
 
     @staticmethod
     def __split(line):
@@ -219,7 +221,7 @@ class CFG():
 
                 # if there are two consecutive spaces, add a space to the current and next item
                 try:
-                    if line[n+1] == ' ':
+                    if line[i+1] == ' ':
                         _str += ' '
                 except IndexError:
                     pass
@@ -323,7 +325,8 @@ class CFG():
                     # TODO - this line right here needs some work
                     # how to properly do symbol expansion and formation?
                     # needs to rely on .parse_func being set() later on (i think?)
-                    stack.append(self.mappings[sym_name]) # note that this is NOT a literal symbol
+                    # note that this is NOT a literal symbol
+                    stack.append(Symbol(self.mappings[sym_name]))
                 else:
                     # literal Symbols can be easily recombined later
                     stack.append(Symbol(token, type_='lit'))
