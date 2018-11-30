@@ -99,8 +99,9 @@ class Symbol():
             raise TypeError("cannot or with type: {}".format(type(other)))
 
         def _f(inp_str):
-            if not inp_str:
-                return inp_str, ""
+            # note - should there be an empty check+ret here?
+            #if not inp_str:
+            #    return inp_str, ""
             _inp_original = copy.copy(inp_str)
             inp, ret = self.parse(inp_str)
             if _inp_original == inp:
