@@ -53,6 +53,20 @@ class Symbol():
 
         # note - how to handle multiline regex?
 
+    def update(self, other):
+        """
+        Update fields of this symbol with all fields from 'other'
+        """
+
+        if not isinstance(other, Symbol):
+            return TypeError("Cannot update with type: {}".format(type(other)))
+
+        self.str = other.str
+        self.raw = other.raw
+        self.regex = other.regex
+        self.parse_func = other.parse_func
+        self.type_ = other.type_
+
     @staticmethod
     def create_parse_func(reg=None, function=None):
         # TODO - possibly use param function to check against current function?
@@ -149,21 +163,6 @@ class Symbol():
     def __ror__(self, other):
         return self.__or__(other)
 
-    @staticmethod
-    def _sym(inp):
-        """
-        separate symbol names and expressions
-        """
-        return inp[:inp.index(':')].strip()[1:]
-
-    @staticmethod
-    def _expr(inp):
-        return re.sub(r'.*?:', '', inp, 1)
-
-    @staticmethod
-    def create_mappings(lines):
-        return {Symbol._sym(line):Symbol._expr(line) for line in lines}
-
 """
 Possibly: create a symbol parse tree - symbols are pushed on at line parse,
 then the whole tree is evaluated as a symbol expression.
@@ -204,6 +203,9 @@ class CFG():
         self.root = lines[0][:lines[0].index(':')].strip().lstrip('\\')
 
         self._create_cfg(lines)
+
+    def __repr__(self):
+        return str(self.symbols)
 
     def _create_cfg(self, lines):
         """
