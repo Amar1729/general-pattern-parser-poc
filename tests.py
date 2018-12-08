@@ -9,7 +9,7 @@
 
 from poc import Symbol, CFG
 
-import re
+
 
 def test_star():
     a = Symbol('a*')
@@ -119,6 +119,42 @@ def test_read_expr():
     assert cfg.parse('abb')[0] == ''
     assert cfg.parse('abba') == ('a', 'bb')
 
+def test_paren():
+    expr = "\\A:( ab ) | c"
+    cfg = CFG(expr)
+
+    assert cfg.__str__() == "A: r'ab|c'"
+
+    assert cfg.parse('')[1] == False
+    assert cfg.parse('ab') == ('', 'ab')
+    assert cfg.parse('c') == ('', 'c')
+    assert cfg.parse('ac') == ('ac', False)
+
+    # this works properly:
+    d = {'g':Symbol(None)}
+    _g = (Symbol('a') + d['g'] + Symbol('b')) | Symbol('')
+    d['g'].update(_g)
+    assert d['g'].parse('') == ('', True)
+    d['g'].parse('ab') == ('', 'b')
+    d['g'].parse('aabb') == ('', 'b')
+
+    expr = "\\A:a + \\A + b"
+    cfg = CFG(expr)
+    assert cfg.parse('') == ('', True)
+    assert cfg.parse('ab') == ('', 'b')
+    assert cfg.parse('aabb') == ('', 'b')
+    #assert cfg.parse('aabb') == ('', 'b')
+
+    #expr = "\\A:(a + \\A + b) | \\0"
+    expr = "\\A:( a + \\A + b ) | \\0"
+    cfg = CFG(expr)
+
+    print(cfg)
+
+    assert cfg.parse('') == ('', True)
+    assert cfg.parse('ab') == ('', 'b')
+    assert cfg.parse('aabb') == ('', 'b')
+
 test_star()
 test_add()
 test_or()
@@ -126,6 +162,7 @@ test_add_or()
 test_rec()
 
 test_read_expr()
+test_paren()
 
 def test_create_symbol():
     """
@@ -169,7 +206,7 @@ def test_cfg_manual():
     st = "first second third fourth fifth"
     g.parse(st)
 
-test_cfg_manual()
+#test_cfg_manual()
 
 def test_inp_cfg():
     """

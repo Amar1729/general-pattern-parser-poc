@@ -195,10 +195,8 @@ class CFG():
         #   (so that every symbol resolves to something)
         # then loop through again to perform Symbol arithmetic
         #self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
-        self.symbols = {}
+        self.symbols = {k:Symbol('') for k, v in self.mappings.items()}
         for k, v in self.mappings.items():
-            # is this loop necc?
-            self.symbols[k] = Symbol(None)
             _k = self.__expand_symbol(v)
             self.symbols[k].update(_k)
 
@@ -238,7 +236,11 @@ class CFG():
         """
 
         # TODO - maybe put ParseError handling/raising here, for more modular code?
-        return self.__condense(CFG.__line_to_postfix(line))
+        try:
+            return self.__condense(CFG.__line_to_postfix(line))
+        except re.error:
+            # TODO - this doesn't actually supress output from re.error
+            raise ParseError("Unmatched '(' or ')'")
 
     @staticmethod
     def __line_to_postfix(line):
@@ -326,10 +328,19 @@ class CFG():
                     # how to properly do symbol expansion and formation?
                     # needs to rely on .parse_func being set() later on (i think?)
                     # note that this is NOT a literal symbol
-                    stack.append(Symbol(self.mappings[sym_name]))
+                    # TODO this isn't correct - shouldn't be Symbolizing this string
+                    # -> the string is just the expr of the symbol
+                    # -> does not work for recursive symbol names!
+                    # -> and probably not for more complex symbols
+                    #stack.append(Symbol(self.mappings[sym_name]))
+                    #stack.append(self.mappings[sym_name])
+                    stack.append(self.symbols[sym_name])
                 else:
                     # literal Symbols can be easily recombined later
-                    stack.append(Symbol(token, type_='lit'))
+                    try:
+                        stack.append(Symbol(token, type_='lit'))
+                    except re.error:
+                        raise ParseError("Unmatched '(' or ')'")
 
         if len(stack) > 1:
             # TODO - better error here, this is too obscure
