@@ -140,7 +140,7 @@ def test_paren():
 
     expr = "\\A:a + \\A + b"
     cfg = CFG(expr)
-    assert cfg.parse('') == ('', True)
+    assert cfg.parse('') == ('', False)
     assert cfg.parse('ab') == ('', 'b')
     assert cfg.parse('aabb') == ('', 'b')
     #assert cfg.parse('aabb') == ('', 'b')
