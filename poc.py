@@ -22,6 +22,10 @@ class Symbol():
     # if this is the case, that symbol is a nonterminal (probably recursive)
     # which will be manually created later
     def __init__(self, regex, **kwargs):
+        # regex:
+        # None -> empty regex that can be updated (does this matter?)
+        # '' -> literally nothing
+        # nonempty string -> a regex for that
         if regex:
             # TODO - possibly treat 'regex' differently if prefixed with r or not?
             # -> so we can form literals easily?
@@ -47,6 +51,28 @@ class Symbol():
         #self.enabled = True
 
         # note - how to handle multiline regex?
+
+    def update(self, other):
+
+        if not isinstance(other, Symbol):
+            raise TypeError("Cannot update with type {}".format(type(other)))
+
+        self.str = other.str
+        try:
+            if not other.regex:
+                self.regex = other.regex
+        except AttributeError:
+            pass
+        try:
+            self.raw = other.raw
+        except AttributeError:
+            pass
+        try:
+            self.parse_func = other.parse_func
+        except AttributeError:
+            # TODO - slightly obtuse error msg
+            raise TypeError("Original symbol requires a parse function")
+        self.type_ = other.type_
 
     @staticmethod
     def create_parse_func(reg=None, function=None):
@@ -112,11 +138,15 @@ class Symbol():
             raise TypeError("cannot or with type: {}".format(type(other)))
 
         def _f(inp_str):
+            # note - should there be an empty check+ret here?
             #if not inp_str:
             #    return inp_str, ""
+            # note - also a check that this isn't the empty string parse func?
+            _inp_original = copy.copy(inp_str)
             inp, ret = self.parse(inp_str)
-            if not ret:
+            if _inp_original == inp:
                 inp, ret = other.parse(inp_str)
+
             return inp, ret
 
         if self.type_ == 'lit' and other.type_ == 'lit':
@@ -145,41 +175,6 @@ class Symbol():
     def __ror__(self, other):
         return self.__or__(other)
 
-    @staticmethod
-    def _sym(inp):
-        """
-        separate symbol names and expressions
-        """
-        return inp[:inp.index(':')].strip()[1:]
-
-    @staticmethod
-    def _expr(inp):
-        return re.sub(r'.*?:', '', inp, 1)
-
-    @staticmethod
-    def create_mappings(lines):
-        return {Symbol._sym(line):Symbol._expr(line) for line in lines}
-
-"""
-Possibly: create a symbol parse tree - symbols are pushed on at line parse,
-then the whole tree is evaluated as a symbol expression.
-Returns? one aggregate symbol
-
-- note : how to do dependency tracking?
-- leaves could have an attribute indicating whether it's dependent?
-
-- notes:
-# look for symbol names (\\SYMBOL) inside the line string
-r = re.compile(r'\\\w+?\b')
-# create a literal symbol out of the remaining text
-
-# split line by spaces, preserving multiple consecutive (up to 2?)
-# check if _str is a symbol or not:
-#   if it is, push it to Tree as a symbol
-#   else, push it to Tree as a regex
-#       -> a regex node may be easily combined with another
-"""
-
 class CFG():
     """
     Collection of symbols to parse out as a group
@@ -201,6 +196,9 @@ class CFG():
 
         self.__create_mappings(lines)
         self.__create_cfg()
+
+    def __str__(self):
+        return '\n'.join(["{}: {}".format(s, e) for s, e in self.symbols.items()])
 
     def __create_mappings(self, lines):
         """
@@ -224,13 +222,10 @@ class CFG():
         #   (so that every symbol resolves to something)
         # then loop through again to perform Symbol arithmetic
         #self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
-        self.symbols = {}
+        self.symbols = {k:Symbol('') for k, v in self.mappings.items()}
         for k, v in self.mappings.items():
-            # is this loop necc?
-            self.symbols[k] = Symbol(None)
             _k = self.__expand_symbol(v)
-            self.symbols[k].set_parse_func(_k.parse_func)
-        #self.symbols = {k:symbols[k].condense() for k in symbols}
+            self.symbols[k].update(_k)
 
     @staticmethod
     def __split(line):
@@ -268,7 +263,11 @@ class CFG():
         """
 
         # TODO - maybe put ParseError handling/raising here, for more modular code?
-        return self.__condense(CFG.__line_to_postfix(line))
+        try:
+            return self.__condense(CFG.__line_to_postfix(line))
+        except re.error:
+            # TODO - this doesn't actually supress output from re.error
+            raise ParseError("Unmatched '(' or ')'")
 
     @staticmethod
     def __line_to_postfix(line):
@@ -358,10 +357,20 @@ class CFG():
                     # TODO - this line right here needs some work
                     # how to properly do symbol expansion and formation?
                     # needs to rely on .parse_func being set() later on (i think?)
-                    stack.append(self.mappings[sym_name]) # note that this is NOT a literal symbol
+                    # note that this is NOT a literal symbol
+                    # TODO this isn't correct - shouldn't be Symbolizing this string
+                    # -> the string is just the expr of the symbol
+                    # -> does not work for recursive symbol names!
+                    # -> and probably not for more complex symbols
+                    #stack.append(Symbol(self.mappings[sym_name]))
+                    #stack.append(self.mappings[sym_name])
+                    stack.append(self.symbols[sym_name])
                 else:
                     # literal Symbols can be easily recombined later
-                    stack.append(Symbol(token, type_='lit'))
+                    try:
+                        stack.append(Symbol(token, type_='lit'))
+                    except re.error:
+                        raise ParseError("Unmatched '(' or ')'")
 
         if len(stack) > 1:
             # TODO - better error here, this is too obscure

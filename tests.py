@@ -7,9 +7,162 @@
 # second thought - measure length and compare (if we want to do this)
 # of course, the second item in the tuple is empty if this is the case
 
-from poc import Symbol
+from poc import Symbol, CFG
 
-import re
+
+
+def test_star():
+    a = Symbol('a*')
+
+    assert a.parse('')[1] == True
+    assert a.parse('aa')[0] == ''
+    assert a.parse('aa')[1] == 'aa'
+    assert a.parse('aab')[0] == 'b'
+    assert a.parse('aaba')[0] == 'ba'
+
+def test_add():
+    a = Symbol('a')
+    b = Symbol('b')
+    c = a + b
+
+    assert c.parse('')[1] == False
+    assert c.parse('ab')[0] == ''
+    assert c.parse('abb')[0] != ''
+
+    a = Symbol('a*')
+    b = Symbol('b*')
+    c = a + b
+
+    assert c.parse('')[1] == True
+    assert c.parse('ab')[0] == ''
+    assert c.parse('aab')[0] == ''
+    assert c.parse('abb')[0] == ''
+    assert c.parse('aa')[0] == ''
+    assert c.parse('bb')[0] == ''
+    assert c.parse('aba')[0] != ''
+
+def test_or():
+    a = Symbol('a')
+    b = Symbol('b')
+    c = a | b
+
+    assert c.parse('')[1] == False
+    assert c.parse('a')[0] == ''
+    assert c.parse('b')[0] == ''
+
+    a = Symbol('a*')
+    b = Symbol('b*')
+    c = a | b
+
+    assert c.parse('')[1] == True
+    assert c.parse('aa')[0] == ''
+    assert c.parse('aa')[1] == 'aa'
+    assert c.parse('aab')[0] == 'b'
+    assert c.parse('aaba')[0] == 'ba'
+    assert c.parse('bb')[0] == ''
+    assert c.parse('bb')[1] == 'bb'
+    assert c.parse('bba')[0] == 'a'
+    assert c.parse('bbab')[0] == 'ab'
+
+def test_add_or():
+    a = Symbol('a')
+    b = Symbol('b')
+    c = Symbol('c')
+
+    d = (a+b)|c
+
+    assert d.parse('')[1] == False
+    assert d.parse('ab')[0] == ''
+    assert d.parse('c')[0] == ''
+
+    d = a+(b|c)
+
+    assert d.parse('')[1] == False
+    assert d.parse('ab') == ('', 'b')
+    assert d.parse('ac') == ('', 'c')
+
+def test_rec():
+    d = {'a':Symbol(None)}
+    _a = (Symbol('a') + d['a']) | Symbol('')
+    d['a'].update(_a)
+
+    assert d['a'].parse('') == ('', True)
+    assert d['a'].parse('a') == ('', True)
+    assert d['a'].parse('aa') == ('', True)
+
+    d = {'g': Symbol(None)}
+    _g = (Symbol('a') + d['g'] + Symbol('b')) | Symbol('')
+    d['g'].update(_g)
+
+    assert d['g'].parse('') == ('', True)
+    assert d['g'].parse('ab') == ('', 'b')
+    assert d['g'].parse('aabb') == ('', 'b')
+    assert d['g'].parse('aaabb') == ('', False)
+    assert d['g'].parse('aabbb') == ('b', 'b')
+
+def test_read_expr():
+    expr = "\\A:a"
+    cfg = CFG(expr)
+
+    assert cfg.root == 'A'
+    assert cfg.parse('')[1] == False
+    assert cfg.parse('a')[0] == ''
+    assert cfg.parse('aa') == ('a', 'a')
+
+    expr = "\\A:a + \\B\n\\B:b*"
+    cfg = CFG(expr)
+
+    assert cfg.root == 'A'
+    assert cfg.parse('')[1] == False
+    assert cfg.parse('a')[0] == ''
+    assert cfg.parse('ab')[0] == ''
+    assert cfg.parse('abb')[0] == ''
+    assert cfg.parse('abba') == ('a', 'bb')
+
+def test_paren():
+    expr = "\\A:( ab ) | c"
+    cfg = CFG(expr)
+
+    assert cfg.__str__() == "A: r'ab|c'"
+
+    assert cfg.parse('')[1] == False
+    assert cfg.parse('ab') == ('', 'ab')
+    assert cfg.parse('c') == ('', 'c')
+    assert cfg.parse('ac') == ('ac', False)
+
+    # this works properly:
+    d = {'g':Symbol(None)}
+    _g = (Symbol('a') + d['g'] + Symbol('b')) | Symbol('')
+    d['g'].update(_g)
+    assert d['g'].parse('') == ('', True)
+    d['g'].parse('ab') == ('', 'b')
+    d['g'].parse('aabb') == ('', 'b')
+
+    expr = "\\A:a + \\A + b"
+    cfg = CFG(expr)
+    assert cfg.parse('') == ('', True)
+    assert cfg.parse('ab') == ('', 'b')
+    assert cfg.parse('aabb') == ('', 'b')
+    #assert cfg.parse('aabb') == ('', 'b')
+
+    #expr = "\\A:(a + \\A + b) | \\0"
+    expr = "\\A:( a + \\A + b ) | \\0"
+    cfg = CFG(expr)
+
+    print(cfg)
+
+    assert cfg.parse('') == ('', True)
+    assert cfg.parse('ab') == ('', 'b')
+    assert cfg.parse('aabb') == ('', 'b')
+
+test_star()
+test_add()
+test_or()
+test_add_or()
+test_rec()
+
+test_read_expr()
+test_paren()
 
 def test_create_symbol():
     """
@@ -53,7 +206,7 @@ def test_cfg_manual():
     st = "first second third fourth fifth"
     g.parse(st)
 
-test_cfg_manual()
+#test_cfg_manual()
 
 def test_inp_cfg():
     """
