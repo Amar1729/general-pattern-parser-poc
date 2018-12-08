@@ -33,6 +33,11 @@ class Symbol():
         else:
             self.str = "\\0"
 
+        # these are set beforehand in case input regex == None:
+        # in this case the symbol is just a placeholder, waiting to be updated
+        self.raw = None
+        self.regex = None
+
         if regex:
             self.raw = regex
             self.regex = re.compile(regex)
@@ -53,6 +58,9 @@ class Symbol():
         # note - how to handle multiline regex?
 
     def update(self, other):
+        """
+        Update fields of this symbol with all fields from 'other'
+        """
 
         if not isinstance(other, Symbol):
             raise TypeError("Cannot update with type {}".format(type(other)))
@@ -72,10 +80,13 @@ class Symbol():
         except AttributeError:
             # TODO - slightly obtuse error msg
             raise TypeError("Original symbol requires a parse function")
+
         self.type_ = other.type_
 
     @staticmethod
     def create_parse_func(reg=None, function=None):
+        # TODO - possibly use param function to check against current function?
+        # possible approach to solving left recursion
         def func(inp_str):
             result = re.match(reg, inp_str)
             if result:
@@ -85,12 +96,6 @@ class Symbol():
                 return (inp_str[rem_len:], result if result else True)
             return (inp_str, False)
         return func
-
-    # i think for testing purposes I'll have to define a few more functions
-    # such as a set_line() ? maybe ?
-    # how else do i manually create a CFG (remember, for testing?)
-    def set_parse_func(self, f):
-        self.parse_func = f
 
     def parse(self, inp_str):
         return self.parse_func(inp_str)
@@ -103,7 +108,7 @@ class Symbol():
 
     def __add__(self, other):
         """
-        Change the parse function when symbols are added together
+        Update the parse function when symbols are added together (concatenation)
         """
 
         if not isinstance(other, Symbol):
@@ -133,6 +138,9 @@ class Symbol():
         return s
 
     def __or__(self, other):
+        """
+        Update the parse function when symbols are or'd together (disjunction)
+        """
 
         if not isinstance(other, Symbol):
             raise TypeError("cannot or with type: {}".format(type(other)))
@@ -194,38 +202,43 @@ class CFG():
         # by default, the first symbol will be the start point
         self.root = lines[0][:lines[0].index(':')].strip().lstrip('\\')
 
-        self.__create_mappings(lines)
-        self.__create_cfg()
+        self._create_cfg(lines)
 
     def __str__(self):
         return '\n'.join(["{}: {}".format(s, e) for s, e in self.symbols.items()])
 
-    def __create_mappings(self, lines):
+    def _create_cfg(self, lines):
         """
-        extract symbol names and expressions into a dictionary
+        First, extract symbol names and expressions into a dictionary
+        (first step has to complete so symbol dict is full before step 2)
+        Then, from mappings, create the collection of Symbols that form this CFG
         """
+
         def _sym(inp):
             return inp[:inp.index(':')].strip().lstrip('\\')
 
         def _expr(inp):
             return re.sub(r'.*?:', '', inp, 1)
 
-        self.mappings = {_sym(line):_expr(line) for line in lines}
-
-    def __create_cfg(self):
-        """
-        From mappings, create the collection of Symbols that form this CFG
-        """
+        self.symbols = {}
+        self.mappings = self._mappings = {}
+        # TODO - can this loop be condensed ?
+        for line in lines:
+            _symbol = _sym(line)
+            self.mappings[_symbol] = self._mappings[_symbol] = _expr(line)
+            self.symbols[_symbol] = Symbol(None)
 
         # idea:
         # convert each line to a list of symbols to be combined in one loop
         #   (so that every symbol resolves to something)
         # then loop through again to perform Symbol arithmetic
         #self.symbols = {k:self.__expand_symbol(v) for k, v in self.mappings.items()}
-        self.symbols = {k:Symbol('') for k, v in self.mappings.items()}
-        for k, v in self.mappings.items():
-            _k = self.__expand_symbol(v)
-            self.symbols[k].update(_k)
+        self.symbols = {k:Symbol('') for k in self.mappings}
+        for symbol_name, symbol_line in self.mappings.items():
+            # todo - does order matter?
+            _tokenized_line = self.__line_to_postfix(symbol_line)
+            _symbol_updated = self.__condense(_tokenized_line)
+            self.symbols[symbol_name].update(_symbol_updated)
 
     @staticmethod
     def __split(line):
@@ -256,18 +269,6 @@ class CFG():
 
     def __is_symbol(self, _str):
         return True if _str.strip().lstrip('\\') in self.mappings else False
-
-    def __expand_symbol(self, line):
-        """
-        Convert a line with Symbol names to a Symbol
-        """
-
-        # TODO - maybe put ParseError handling/raising here, for more modular code?
-        try:
-            return self.__condense(CFG.__line_to_postfix(line))
-        except re.error:
-            # TODO - this doesn't actually supress output from re.error
-            raise ParseError("Unmatched '(' or ')'")
 
     @staticmethod
     def __line_to_postfix(line):
@@ -318,13 +319,9 @@ class CFG():
         if '(' in stack:
             raise ParseError("Unmatched '('")
 
-        while stack:
-            output.append(stack.pop())
-
-        print("postfix:")
-        print(output)
-        print('')
-        return output
+        # benchmark this? is this efficient?
+        for elem in output+stack[::-1]:
+            yield elem
 
     def __condense(self, tokens):
         """
@@ -353,7 +350,7 @@ class CFG():
             else:
                 # token is a str literal, regex, or SYMBOL_NAME
                 sym_name = token.strip().lstrip('\\')
-                if sym_name in self.mappings:
+                if sym_name in self.symbols:
                     # TODO - this line right here needs some work
                     # how to properly do symbol expansion and formation?
                     # needs to rely on .parse_func being set() later on (i think?)
@@ -362,14 +359,13 @@ class CFG():
                     # -> the string is just the expr of the symbol
                     # -> does not work for recursive symbol names!
                     # -> and probably not for more complex symbols
-                    #stack.append(Symbol(self.mappings[sym_name]))
-                    #stack.append(self.mappings[sym_name])
                     stack.append(self.symbols[sym_name])
                 else:
                     # literal Symbols can be easily recombined later
                     try:
                         stack.append(Symbol(token, type_='lit'))
                     except re.error:
+                        # TODO - this doesn't actually supress output from re.error
                         raise ParseError("Unmatched '(' or ')'")
 
         if len(stack) > 1:
