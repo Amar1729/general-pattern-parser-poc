@@ -22,6 +22,10 @@ class Symbol():
     # if this is the case, that symbol is a nonterminal (probably recursive)
     # which will be manually created later
     def __init__(self, regex, **kwargs):
+        # regex:
+        # None -> empty regex that can be updated (does this matter?)
+        # '' -> literally nothing
+        # nonempty string -> a regex for that
         if regex:
             # TODO - possibly treat 'regex' differently if prefixed with r or not?
             # -> so we can form literals easily?
@@ -103,7 +107,6 @@ class Symbol():
             inp, ret = self.parse(inp_str)
             if not ret:
                 return inp, ret
-            print("parsed: {}".format(ret))
             inp, ret = other.parse(inp)
             return inp, ret
 
@@ -127,10 +130,7 @@ class Symbol():
             _inp_original = copy.copy(inp_str)
             inp, ret = self.parse(inp_str)
             if _inp_original == inp:
-                print("parsed (or): {}".format(ret))
                 inp, ret = other.parse(inp_str)
-            else:
-                print("parsed (first): {}".format(ret))
 
             return inp, ret
 
